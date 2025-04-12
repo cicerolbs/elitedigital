@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ui import View, Select
 import os
 from dotenv import load_dotenv
 
@@ -11,7 +12,6 @@ intents.message_content = True
 intents.guilds = True
 intents.messages = True
 intents.members = True
-intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -22,8 +22,6 @@ emoji_cargo = {
     "🧊": "🧊 Modelador 3D",
     "🎮": "🎮 Gamer"
 }
-
-mensagem_reacoes_id = None
 
 @bot.event
 async def on_ready():
@@ -100,64 +98,56 @@ async def criar_cargos(ctx):
 
     await ctx.send("Cargos criados com sucesso! ✅")
 
+class CargoSelect(Select):
+    def __init__(self, guild):
+        self.guild = guild
+        options = [
+            discord.SelectOption(label="Estudante", emoji="🧠", value="🧠 Estudante"),
+            discord.SelectOption(label="Designer Gráfico", emoji="🎨", value="🎨 Designer"),
+            discord.SelectOption(label="Dev / Criador de Jogos", emoji="👨‍💻", value="👨‍💻 Dev/Gamedev"),
+            discord.SelectOption(label="Modelador 3D", emoji="🧊", value="🧊 Modelador 3D"),
+            discord.SelectOption(label="Gamer", emoji="🎮", value="🎮 Gamer")
+        ]
+        super().__init__(placeholder="Selecione seus cargos...", min_values=0, max_values=len(options), options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        roles = []
+        for value in self.values:
+            role = discord.utils.get(self.guild.roles, name=value)
+            if role:
+                roles.append(role)
+
+        for emoji, nome_cargo in emoji_cargo.items():
+            role = discord.utils.get(self.guild.roles, name=nome_cargo)
+            if role and role in interaction.user.roles and nome_cargo not in self.values:
+                await interaction.user.remove_roles(role)
+
+        for role in roles:
+            await interaction.user.add_roles(role)
+
+        await interaction.response.send_message("✅ Cargos atualizados com sucesso!", ephemeral=True)
+
+class CargoMenuView(View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.add_item(CargoSelect(guild))
+
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def configurar_reacoes(ctx):
+async def menu_interativo(ctx):
     canal = next((c for c in ctx.guild.text_channels if "escolha-seu-perfil" in c.name), None)
     if not canal:
         await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
         return
 
     texto = (
-        "**🎭 Escolha sua área de interesse abaixo:**\n\n"
-        "Reaja com um emoji para receber o cargo correspondente:\n\n"
-        "🧠 — **Estudante**\n"
-        "🎨 — **Designer Gráfico**\n"
-        "👨‍💻 — **Dev / Criador de Jogos**\n"
-        "🧊 — **Modelador 3D**\n"
-        "🎮 — **Gamer**\n\n"
-        "_Remova a reação para remover o cargo._"
+        "**🎭 Escolha suas áreas de interesse:**\n\n"
+        "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
+        "Você pode marcar mais de um!"
     )
 
-    mensagem = await canal.send(texto)
-
-    for emoji in emoji_cargo.keys():
-        await mensagem.add_reaction(emoji)
-
-    global mensagem_reacoes_id
-    mensagem_reacoes_id = mensagem.id
-    await ctx.send("Mensagem de reações atualizada com sucesso! ✅")
-
-@bot.event
-async def on_raw_reaction_add(payload):
-    if payload.user_id == bot.user.id:
-        return
-
-    guild = discord.utils.get(bot.guilds, id=payload.guild_id)
-    member = guild.get_member(payload.user_id)
-    if not member:
-        return
-
-    for emoji, nome_cargo in emoji_cargo.items():
-        if str(payload.emoji) == emoji:
-            role = discord.utils.get(guild.roles, name=nome_cargo)
-            if role:
-                await member.add_roles(role)
-
-@bot.event
-async def on_raw_reaction_remove(payload):
-    if payload.user_id == bot.user.id:
-        return
-
-    guild = discord.utils.get(bot.guilds, id=payload.guild_id)
-    member = guild.get_member(payload.user_id)
-    if not member:
-        return
-
-    for emoji, nome_cargo in emoji_cargo.items():
-        if str(payload.emoji) == emoji:
-            role = discord.utils.get(guild.roles, name=nome_cargo)
-            if role:
-                await member.remove_roles(role)
+    view = CargoMenuView(ctx.guild)
+    await canal.send(texto, view=view)
+    await ctx.send("✅ Menu interativo enviado com sucesso!")
 
 bot.run(TOKEN)
