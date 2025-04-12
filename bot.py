@@ -15,7 +15,6 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Mapeamento emoji -> cargo
 emoji_cargo = {
     "🧠": "🧠 Estudante",
     "🎨": "🎨 Designer",
@@ -24,7 +23,7 @@ emoji_cargo = {
     "🎮": "🎮 Gamer"
 }
 
-mensagem_reacoes_id = None  # Global para guardar ID da mensagem
+mensagem_reacoes_id = None
 
 @bot.event
 async def on_ready():
@@ -34,9 +33,7 @@ async def on_ready():
 async def on_member_join(member):
     guild = member.guild
     role = discord.utils.get(guild.roles, name="👥 Cidadão")
-    canal_boas_vindas = next(
-        (c for c in guild.text_channels if "entrada" in c.name.lower()), None
-    )
+    canal_boas_vindas = next((c for c in guild.text_channels if "entrada" in c.name.lower()), None)
 
     if role:
         await member.add_roles(role)
@@ -111,14 +108,25 @@ async def configurar_reacoes(ctx):
         await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
         return
 
-    mensagem = await canal.send("👤 **Escolha sua área de interesse reagindo abaixo:**")
+    texto = (
+        "**🎭 Escolha sua área de interesse abaixo:**\n\n"
+        "Reaja com um emoji para receber o cargo correspondente:\n\n"
+        "🧠 — **Estudante**\n"
+        "🎨 — **Designer Gráfico**\n"
+        "👨‍💻 — **Dev / Criador de Jogos**\n"
+        "🧊 — **Modelador 3D**\n"
+        "🎮 — **Gamer**\n\n"
+        "_Remova a reação para remover o cargo._"
+    )
+
+    mensagem = await canal.send(texto)
 
     for emoji in emoji_cargo.keys():
         await mensagem.add_reaction(emoji)
 
     global mensagem_reacoes_id
     mensagem_reacoes_id = mensagem.id
-    await ctx.send("Mensagem de reações configurada com sucesso! ✅")
+    await ctx.send("Mensagem de reações atualizada com sucesso! ✅")
 
 @bot.event
 async def on_raw_reaction_add(payload):
