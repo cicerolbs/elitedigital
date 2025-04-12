@@ -11,8 +11,20 @@ intents.message_content = True
 intents.guilds = True
 intents.messages = True
 intents.members = True
+intents.reactions = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Mapeamento emoji -> cargo
+emoji_cargo = {
+    "🧠": "🧠 Estudante",
+    "🎨": "🎨 Designer",
+    "👨‍💻": "👨‍💻 Dev/Gamedev",
+    "🧊": "🧊 Modelador 3D",
+    "🎮": "🎮 Gamer"
+}
+
+mensagem_reacoes_id = None  # Global para guardar ID da mensagem
 
 @bot.event
 async def on_ready():
@@ -22,7 +34,6 @@ async def on_ready():
 async def on_member_join(member):
     guild = member.guild
     role = discord.utils.get(guild.roles, name="👥 Cidadão")
-
     canal_boas_vindas = next(
         (c for c in guild.text_channels if "entrada" in c.name.lower()), None
     )
@@ -91,5 +102,54 @@ async def criar_cargos(ctx):
         await guild.create_role(name=nome, colour=cor)
 
     await ctx.send("Cargos criados com sucesso! ✅")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def configurar_reacoes(ctx):
+    canal = next((c for c in ctx.guild.text_channels if "escolha-seu-perfil" in c.name), None)
+    if not canal:
+        await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
+        return
+
+    mensagem = await canal.send("👤 **Escolha sua área de interesse reagindo abaixo:**")
+
+    for emoji in emoji_cargo.keys():
+        await mensagem.add_reaction(emoji)
+
+    global mensagem_reacoes_id
+    mensagem_reacoes_id = mensagem.id
+    await ctx.send("Mensagem de reações configurada com sucesso! ✅")
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.user_id == bot.user.id:
+        return
+
+    guild = discord.utils.get(bot.guilds, id=payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    if not member:
+        return
+
+    for emoji, nome_cargo in emoji_cargo.items():
+        if str(payload.emoji) == emoji:
+            role = discord.utils.get(guild.roles, name=nome_cargo)
+            if role:
+                await member.add_roles(role)
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    if payload.user_id == bot.user.id:
+        return
+
+    guild = discord.utils.get(bot.guilds, id=payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    if not member:
+        return
+
+    for emoji, nome_cargo in emoji_cargo.items():
+        if str(payload.emoji) == emoji:
+            role = discord.utils.get(guild.roles, name=nome_cargo)
+            if role:
+                await member.remove_roles(role)
 
 bot.run(TOKEN)
