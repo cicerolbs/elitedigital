@@ -219,7 +219,9 @@ async def backup(ctx):
         json.dump(data, f, ensure_ascii=False, indent=4)
     await ctx.send(file=discord.File("server_backup.json"))
 
+# Web keep-alive para Render
 app = Flask('')
+
 @app.route('/')
 def home():
     return "Bot EliteDigital está ativo!"
