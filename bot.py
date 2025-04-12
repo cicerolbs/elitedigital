@@ -140,6 +140,13 @@ async def menu_interativo(ctx):
         await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
         return
 
+    async for msg in canal.history(limit=100):
+        if msg.author == bot.user and msg.components:
+            try:
+                await msg.delete()
+            except:
+                pass
+
     embed = discord.Embed(
         title="🎭 Escolha suas Áreas de Interesse",
         description=(
