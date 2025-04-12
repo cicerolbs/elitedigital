@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 from discord.ui import View, Select, Button
@@ -74,7 +75,6 @@ async def setup(ctx):
                     await guild.create_text_channel(name=canal, category=cat)
 
     await ctx.send("✅ Estrutura do servidor verificada/criada com sucesso!")
-
     await regras(ctx)
 
 @bot.command()
@@ -113,15 +113,12 @@ class CargoSelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         roles = [discord.utils.get(self.guild.roles, name=value) for value in self.values if discord.utils.get(self.guild.roles, name=value)]
-
         for emoji, nome_cargo in emoji_cargo.items():
             role = discord.utils.get(self.guild.roles, name=nome_cargo)
             if role and role in interaction.user.roles and nome_cargo not in self.values:
                 await interaction.user.remove_roles(role)
-
         for role in roles:
             await interaction.user.add_roles(role)
-
         await interaction.response.send_message("✅ Cargos atualizados com sucesso!", ephemeral=True)
 
 class CargoMenuView(View):
@@ -136,28 +133,32 @@ async def menu_interativo(ctx):
     if not canal:
         await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
         return
-
     async for msg in canal.history(limit=100):
         if msg.author == bot.user and msg.components:
             try:
                 await msg.delete()
             except:
                 pass
-
     embed = discord.Embed(
         title="🎭 Escolha suas Áreas de Interesse",
         description=(
-            "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
-            "Você pode marcar **mais de um**!\n\n"
-            "🧠 **Estudante**\n"
-            "🎨 **Designer Gráfico**\n"
-            "👨‍💻 **Dev / Criador de Jogos**\n"
-            "🧊 **Modelador 3D**\n"
+            "Use o menu abaixo para selecionar os cargos que deseja receber.
+"
+            "Você pode marcar **mais de um**!
+
+"
+            "🧠 **Estudante**
+"
+            "🎨 **Designer Gráfico**
+"
+            "👨‍💻 **Dev / Criador de Jogos**
+"
+            "🧊 **Modelador 3D**
+"
             "🎮 **Gamer**"
         ),
         color=discord.Color.blurple()
     )
-
     view = CargoMenuView(ctx.guild)
     await canal.send(embed=embed, view=view)
     await ctx.send("✅ Menu interativo com embed enviado com sucesso!")
@@ -169,28 +170,28 @@ async def regras(ctx):
     if not canal:
         await ctx.send("Canal de regras não encontrado.")
         return
-
     async for msg in canal.history(limit=100):
         if msg.author == bot.user and msg.components:
             try:
                 await msg.delete()
             except:
                 pass
-
     embed = discord.Embed(
         title="📜 Regras do Servidor",
-        description="""
-1. Respeite todos os membros.
-2. Proibido spam, flood ou divulgação sem permissão.
-3. Use os canais de forma adequada.
-4. Assédio ou discurso de ódio resultará em ban.
-5. Aproveite o servidor com educação e colaboração.
-        """,
+        description=(
+            "1. Respeite todos os membros.
+"
+            "2. Proibido spam, flood ou divulgação sem permissão.
+"
+            "3. Use os canais de forma adequada.
+"
+            "4. Assédio ou discurso de ódio resultará em ban.
+"
+            "5. Aproveite o servidor com educação e colaboração."
+        ),
         color=discord.Color.gold()
     )
-
     button = Button(label="Aceito as Regras", style=discord.ButtonStyle.success)
-
     async def button_callback(interaction):
         visitante = discord.utils.get(ctx.guild.roles, name="🚧 Visitante")
         cidadao = discord.utils.get(ctx.guild.roles, name="👥 Cidadão")
@@ -199,11 +200,9 @@ async def regras(ctx):
         if cidadao:
             await interaction.user.add_roles(cidadao)
         await interaction.response.send_message("✅ Regras aceitas! Bem-vindo ao servidor!", ephemeral=True)
-
     button.callback = button_callback
     view = View()
     view.add_item(button)
-
     await canal.send(embed=embed, view=view)
 
 @bot.command()
@@ -211,34 +210,16 @@ async def regras(ctx):
 async def backup(ctx):
     guild = ctx.guild
     data = {}
-
     for cat in guild.categories:
         data[cat.name] = []
         for chan in cat.channels:
             perms = {str(role): {"read": perm.read_messages} for role, perm in chan.overwrites.items() if isinstance(role, discord.Role)}
             data[cat.name].append({"name": chan.name, "type": str(chan.type), "permissions": perms})
-
     with open("server_backup.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-
     await ctx.send(file=discord.File("server_backup.json"))
 
-# Web thread para manter online no Render
 app = Flask('')
-@app.route('/')
-def home():
-    return "Bot está rodando!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-Thread(target=run).start()
-
-from flask import Flask
-from threading import Thread
-
-app = Flask('')
-
 @app.route('/')
 def home():
     return "Bot EliteDigital está ativo!"
@@ -251,6 +232,4 @@ def keep_alive():
     t.start()
 
 keep_alive()
-
-
 bot.run(TOKEN)
