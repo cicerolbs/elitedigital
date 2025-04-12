@@ -140,14 +140,22 @@ async def menu_interativo(ctx):
         await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
         return
 
-    texto = (
-        "**🎭 Escolha suas áreas de interesse:**\n\n"
-        "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
-        "Você pode marcar mais de um!"
+    embed = discord.Embed(
+        title="🎭 Escolha suas Áreas de Interesse",
+        description=(
+            "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
+            "Você pode marcar **mais de um**!\n\n"
+            "🧠 **Estudante**\n"
+            "🎨 **Designer Gráfico**\n"
+            "👨‍💻 **Dev / Criador de Jogos**\n"
+            "🧊 **Modelador 3D**\n"
+            "🎮 **Gamer**"
+        ),
+        color=discord.Color.blurple()
     )
 
     view = CargoMenuView(ctx.guild)
-    await canal.send(texto, view=view)
-    await ctx.send("✅ Menu interativo enviado com sucesso!")
+    await canal.send(embed=embed, view=view)
+    await ctx.send("✅ Menu interativo com embed enviado com sucesso!")
 
 bot.run(TOKEN)
