@@ -1,8 +1,12 @@
 import discord
 from discord.ext import commands
-from discord.ui import View, Select
+from discord.ui import View, Select, Button
+from discord import app_commands
 import os
 from dotenv import load_dotenv
+import json
+from flask import Flask
+from threading import Thread
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -30,15 +34,9 @@ async def on_ready():
 @bot.event
 async def on_member_join(member):
     guild = member.guild
-    role = discord.utils.get(guild.roles, name="👥 Cidadão")
-    canal_boas_vindas = next((c for c in guild.text_channels if "entrada" in c.name.lower()), None)
-
-    if role:
-        await member.add_roles(role)
-    if canal_boas_vindas:
-        await canal_boas_vindas.send(
-            f"👋 Olá {member.mention}, seja bem-vindo(a) ao **EliteDigital**! Você recebeu o cargo **{role.name}** automaticamente."
-        )
+    visitante = discord.utils.get(guild.roles, name="🚧 Visitante")
+    if visitante:
+        await member.add_roles(visitante)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -63,23 +61,26 @@ async def setup(ctx):
         ]
     }
 
-    await ctx.send("Criando categorias e canais...")
-
     for categoria, canais in estrutura.items():
-        cat = await guild.create_category(name=categoria)
+        cat = discord.utils.get(guild.categories, name=categoria)
+        if not cat:
+            cat = await guild.create_category(name=categoria)
         for canal in canais:
             if isinstance(canal, tuple) and canal[1] == "voice":
-                await guild.create_voice_channel(name=canal[0], category=cat)
+                if not discord.utils.get(guild.voice_channels, name=canal[0]):
+                    await guild.create_voice_channel(name=canal[0], category=cat)
             else:
-                await guild.create_text_channel(name=canal, category=cat)
+                if not discord.utils.get(guild.text_channels, name=canal):
+                    await guild.create_text_channel(name=canal, category=cat)
 
-    await ctx.send("Servidor EliteDigital configurado com sucesso! ✅")
+    await ctx.send("✅ Estrutura do servidor verificada/criada com sucesso!")
+
+    await regras(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def criar_cargos(ctx):
     guild = ctx.guild
-
     cargos = [
         ("🧠 Estudante", discord.Colour.blue()),
         ("🎨 Designer", discord.Colour.magenta()),
@@ -88,15 +89,15 @@ async def criar_cargos(ctx):
         ("🎮 Gamer", discord.Colour.orange()),
         ("👥 Cidadão", discord.Colour.light_grey()),
         ("🧙 Mentor", discord.Colour.gold()),
-        ("👑 Fundador", discord.Colour.red())
+        ("👑 Fundador", discord.Colour.red()),
+        ("🚧 Visitante", discord.Colour.dark_gray())
     ]
 
-    await ctx.send("Criando cargos...")
-
     for nome, cor in cargos:
-        await guild.create_role(name=nome, colour=cor)
+        if not discord.utils.get(guild.roles, name=nome):
+            await guild.create_role(name=nome, colour=cor)
 
-    await ctx.send("Cargos criados com sucesso! ✅")
+    await ctx.send("✅ Cargos verificados/criados com sucesso!")
 
 class CargoSelect(Select):
     def __init__(self, guild):
@@ -111,11 +112,7 @@ class CargoSelect(Select):
         super().__init__(placeholder="Selecione seus cargos...", min_values=0, max_values=len(options), options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        roles = []
-        for value in self.values:
-            role = discord.utils.get(self.guild.roles, name=value)
-            if role:
-                roles.append(role)
+        roles = [discord.utils.get(self.guild.roles, name=value) for value in self.values if discord.utils.get(self.guild.roles, name=value)]
 
         for emoji, nome_cargo in emoji_cargo.items():
             role = discord.utils.get(self.guild.roles, name=nome_cargo)
@@ -164,5 +161,77 @@ async def menu_interativo(ctx):
     view = CargoMenuView(ctx.guild)
     await canal.send(embed=embed, view=view)
     await ctx.send("✅ Menu interativo com embed enviado com sucesso!")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def regras(ctx):
+    canal = next((c for c in ctx.guild.text_channels if "regras" in c.name.lower()), None)
+    if not canal:
+        await ctx.send("Canal de regras não encontrado.")
+        return
+
+    async for msg in canal.history(limit=100):
+        if msg.author == bot.user and msg.components:
+            try:
+                await msg.delete()
+            except:
+                pass
+
+    embed = discord.Embed(
+        title="📜 Regras do Servidor",
+        description="""
+1. Respeite todos os membros.
+2. Proibido spam, flood ou divulgação sem permissão.
+3. Use os canais de forma adequada.
+4. Assédio ou discurso de ódio resultará em ban.
+5. Aproveite o servidor com educação e colaboração.
+        """,
+        color=discord.Color.gold()
+    )
+
+    button = Button(label="Aceito as Regras", style=discord.ButtonStyle.success)
+
+    async def button_callback(interaction):
+        visitante = discord.utils.get(ctx.guild.roles, name="🚧 Visitante")
+        cidadao = discord.utils.get(ctx.guild.roles, name="👥 Cidadão")
+        if visitante in interaction.user.roles:
+            await interaction.user.remove_roles(visitante)
+        if cidadao:
+            await interaction.user.add_roles(cidadao)
+        await interaction.response.send_message("✅ Regras aceitas! Bem-vindo ao servidor!", ephemeral=True)
+
+    button.callback = button_callback
+    view = View()
+    view.add_item(button)
+
+    await canal.send(embed=embed, view=view)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def backup(ctx):
+    guild = ctx.guild
+    data = {}
+
+    for cat in guild.categories:
+        data[cat.name] = []
+        for chan in cat.channels:
+            perms = {str(role): {"read": perm.read_messages} for role, perm in chan.overwrites.items() if isinstance(role, discord.Role)}
+            data[cat.name].append({"name": chan.name, "type": str(chan.type), "permissions": perms})
+
+    with open("server_backup.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+    await ctx.send(file=discord.File("server_backup.json"))
+
+# Web thread para manter online no Render
+app = Flask('')
+@app.route('/')
+def home():
+    return "Bot está rodando!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+Thread(target=run).start()
 
 bot.run(TOKEN)
