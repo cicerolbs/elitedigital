@@ -1,9 +1,8 @@
 import discord
 from discord.ext import commands
 from discord.ui import View, Select, Button
-from discord import app_commands
-import os
 from dotenv import load_dotenv
+import os
 import json
 from flask import Flask
 from threading import Thread
@@ -51,21 +50,38 @@ class CargoSelect(Select):
 
     async def callback(self, interaction: discord.Interaction):
         roles = [discord.utils.get(self.guild.roles, name=value) for value in self.values if discord.utils.get(self.guild.roles, name=value)]
-
         for emoji, nome_cargo in emoji_cargo.items():
             role = discord.utils.get(self.guild.roles, name=nome_cargo)
             if role and role in interaction.user.roles and nome_cargo not in self.values:
                 await interaction.user.remove_roles(role)
-
         for role in roles:
             await interaction.user.add_roles(role)
-
         await interaction.response.send_message("✅ Cargos atualizados com sucesso!", ephemeral=True)
 
 class CargoMenuView(View):
     def __init__(self, guild):
         super().__init__(timeout=None)
         self.add_item(CargoSelect(guild))
+
+class RegrasView(View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.guild = guild
+        self.add_item(AceitarRegrasButton(guild))
+
+class AceitarRegrasButton(Button):
+    def __init__(self, guild):
+        super().__init__(label="Aceito as Regras", style=discord.ButtonStyle.success)
+        self.guild = guild
+
+    async def callback(self, interaction: discord.Interaction):
+        visitante = discord.utils.get(self.guild.roles, name="🚧 Visitante")
+        cidadao = discord.utils.get(self.guild.roles, name="👥 Cidadão")
+        if visitante in interaction.user.roles:
+            await interaction.user.remove_roles(visitante)
+        if cidadao:
+            await interaction.user.add_roles(cidadao)
+        await interaction.response.send_message("✅ Regras aceitas! Bem-vindo ao servidor!", ephemeral=True)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -184,21 +200,7 @@ async def regras(ctx):
         color=discord.Color.gold()
     )
 
-    button = Button(label="Aceito as Regras", style=discord.ButtonStyle.success)
-
-    async def button_callback(interaction):
-        visitante = discord.utils.get(ctx.guild.roles, name="🚧 Visitante")
-        cidadao = discord.utils.get(ctx.guild.roles, name="👥 Cidadão")
-        if visitante in interaction.user.roles:
-            await interaction.user.remove_roles(visitante)
-        if cidadao:
-            await interaction.user.add_roles(cidadao)
-        await interaction.response.send_message("✅ Regras aceitas! Bem-vindo ao servidor!", ephemeral=True)
-
-    button.callback = button_callback
-    view = View()
-    view.add_item(button)
-    await canal.send(embed=embed, view=view)
+    await canal.send(embed=embed, view=RegrasView(ctx.guild))
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -214,7 +216,7 @@ async def backup(ctx):
         json.dump(data, f, ensure_ascii=False, indent=4)
     await ctx.send(file=discord.File("server_backup.json"))
 
-# Mantém o bot vivo no Render
+# Flask app para manter online
 app = Flask('')
 
 @app.route('/')
