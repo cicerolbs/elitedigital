@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from discord.ui import View, Select, Button
@@ -43,7 +42,6 @@ async def on_member_join(member):
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
     guild = ctx.guild
-
     estrutura = {
         "🏠 BEM-VINDO(A)": ["🚪entrada", "📜regras", "🎭escolha-seu-perfil"],
         "🧠 CONHECIMENTO DIGITAL": [
@@ -142,19 +140,12 @@ async def menu_interativo(ctx):
     embed = discord.Embed(
         title="🎭 Escolha suas Áreas de Interesse",
         description=(
-            "Use o menu abaixo para selecionar os cargos que deseja receber.
-"
-            "Você pode marcar **mais de um**!
-
-"
-            "🧠 **Estudante**
-"
-            "🎨 **Designer Gráfico**
-"
-            "👨‍💻 **Dev / Criador de Jogos**
-"
-            "🧊 **Modelador 3D**
-"
+            "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
+            "Você pode marcar **mais de um**!\n\n"
+            "🧠 **Estudante**\n"
+            "🎨 **Designer Gráfico**\n"
+            "👨‍💻 **Dev / Criador de Jogos**\n"
+            "🧊 **Modelador 3D**\n"
             "🎮 **Gamer**"
         ),
         color=discord.Color.blurple()
@@ -179,19 +170,16 @@ async def regras(ctx):
     embed = discord.Embed(
         title="📜 Regras do Servidor",
         description=(
-            "1. Respeite todos os membros.
-"
-            "2. Proibido spam, flood ou divulgação sem permissão.
-"
-            "3. Use os canais de forma adequada.
-"
-            "4. Assédio ou discurso de ódio resultará em ban.
-"
+            "1. Respeite todos os membros.\n"
+            "2. Proibido spam, flood ou divulgação sem permissão.\n"
+            "3. Use os canais de forma adequada.\n"
+            "4. Assédio ou discurso de ódio resultará em ban.\n"
             "5. Aproveite o servidor com educação e colaboração."
         ),
         color=discord.Color.gold()
     )
     button = Button(label="Aceito as Regras", style=discord.ButtonStyle.success)
+
     async def button_callback(interaction):
         visitante = discord.utils.get(ctx.guild.roles, name="🚧 Visitante")
         cidadao = discord.utils.get(ctx.guild.roles, name="👥 Cidadão")
@@ -200,6 +188,7 @@ async def regras(ctx):
         if cidadao:
             await interaction.user.add_roles(cidadao)
         await interaction.response.send_message("✅ Regras aceitas! Bem-vindo ao servidor!", ephemeral=True)
+
     button.callback = button_callback
     view = View()
     view.add_item(button)
