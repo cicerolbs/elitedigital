@@ -33,15 +33,45 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    guild = member.guild
-    visitante = discord.utils.get(guild.roles, name="🚧 Visitante")
+    visitante = discord.utils.get(member.guild.roles, name="🚧 Visitante")
     if visitante:
         await member.add_roles(visitante)
+
+class CargoSelect(Select):
+    def __init__(self, guild):
+        self.guild = guild
+        options = [
+            discord.SelectOption(label="Estudante", emoji="🧠", value="🧠 Estudante"),
+            discord.SelectOption(label="Designer Gráfico", emoji="🎨", value="🎨 Designer"),
+            discord.SelectOption(label="Dev / Criador de Jogos", emoji="👨‍💻", value="👨‍💻 Dev/Gamedev"),
+            discord.SelectOption(label="Modelador 3D", emoji="🧊", value="🧊 Modelador 3D"),
+            discord.SelectOption(label="Gamer", emoji="🎮", value="🎮 Gamer")
+        ]
+        super().__init__(placeholder="Selecione seus cargos...", min_values=0, max_values=len(options), options=options, custom_id="cargo_select")
+
+    async def callback(self, interaction: discord.Interaction):
+        roles = [discord.utils.get(self.guild.roles, name=value) for value in self.values if discord.utils.get(self.guild.roles, name=value)]
+
+        for emoji, nome_cargo in emoji_cargo.items():
+            role = discord.utils.get(self.guild.roles, name=nome_cargo)
+            if role and role in interaction.user.roles and nome_cargo not in self.values:
+                await interaction.user.remove_roles(role)
+
+        for role in roles:
+            await interaction.user.add_roles(role)
+
+        await interaction.response.send_message("✅ Cargos atualizados com sucesso!", ephemeral=True)
+
+class CargoMenuView(View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.add_item(CargoSelect(guild))
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
     guild = ctx.guild
+
     estrutura = {
         "🏠 BEM-VINDO(A)": ["🚪entrada", "📜regras", "🎭escolha-seu-perfil"],
         "🧠 CONHECIMENTO DIGITAL": [
@@ -72,8 +102,10 @@ async def setup(ctx):
                 if not discord.utils.get(guild.text_channels, name=canal):
                     await guild.create_text_channel(name=canal, category=cat)
 
-    await ctx.send("✅ Estrutura do servidor verificada/criada com sucesso!")
+    await criar_cargos(ctx)
     await regras(ctx)
+    await menu_interativo(ctx)
+    await ctx.send("✅ Setup finalizado com sucesso!")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -90,58 +122,30 @@ async def criar_cargos(ctx):
         ("👑 Fundador", discord.Colour.red()),
         ("🚧 Visitante", discord.Colour.dark_gray())
     ]
-
     for nome, cor in cargos:
-        if not discord.utils.get(guild.roles, name=nome):
+        if not discord.utils.get(ctx.guild.roles, name=nome):
             await guild.create_role(name=nome, colour=cor)
-
-    await ctx.send("✅ Cargos verificados/criados com sucesso!")
-
-class CargoSelect(Select):
-    def __init__(self, guild):
-        self.guild = guild
-        options = [
-            discord.SelectOption(label="Estudante", emoji="🧠", value="🧠 Estudante"),
-            discord.SelectOption(label="Designer Gráfico", emoji="🎨", value="🎨 Designer"),
-            discord.SelectOption(label="Dev / Criador de Jogos", emoji="👨‍💻", value="👨‍💻 Dev/Gamedev"),
-            discord.SelectOption(label="Modelador 3D", emoji="🧊", value="🧊 Modelador 3D"),
-            discord.SelectOption(label="Gamer", emoji="🎮", value="🎮 Gamer")
-        ]
-        super().__init__(placeholder="Selecione seus cargos...", min_values=0, max_values=len(options), options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        roles = [discord.utils.get(self.guild.roles, name=value) for value in self.values if discord.utils.get(self.guild.roles, name=value)]
-        for emoji, nome_cargo in emoji_cargo.items():
-            role = discord.utils.get(self.guild.roles, name=nome_cargo)
-            if role and role in interaction.user.roles and nome_cargo not in self.values:
-                await interaction.user.remove_roles(role)
-        for role in roles:
-            await interaction.user.add_roles(role)
-        await interaction.response.send_message("✅ Cargos atualizados com sucesso!", ephemeral=True)
-
-class CargoMenuView(View):
-    def __init__(self, guild):
-        super().__init__(timeout=None)
-        self.add_item(CargoSelect(guild))
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def menu_interativo(ctx):
-    canal = next((c for c in ctx.guild.text_channels if "escolha-seu-perfil" in c.name), None)
+    canal = discord.utils.get(ctx.guild.text_channels, name="🎭escolha-seu-perfil")
     if not canal:
-        await ctx.send("Canal 'escolha-seu-perfil' não encontrado.")
+        await ctx.send("Canal '🎭escolha-seu-perfil' não encontrado.")
         return
-    async for msg in canal.history(limit=100):
+
+    async for msg in canal.history(limit=50):
         if msg.author == bot.user and msg.components:
             try:
                 await msg.delete()
             except:
                 pass
+
     embed = discord.Embed(
         title="🎭 Escolha suas Áreas de Interesse",
         description=(
             "Use o menu abaixo para selecionar os cargos que deseja receber.\n"
-            "Você pode marcar **mais de um**!\n\n"
+            "Você pode marcar **mais de um!**\n\n"
             "🧠 **Estudante**\n"
             "🎨 **Designer Gráfico**\n"
             "👨‍💻 **Dev / Criador de Jogos**\n"
@@ -150,23 +154,24 @@ async def menu_interativo(ctx):
         ),
         color=discord.Color.blurple()
     )
-    view = CargoMenuView(ctx.guild)
-    await canal.send(embed=embed, view=view)
-    await ctx.send("✅ Menu interativo com embed enviado com sucesso!")
+
+    await canal.send(embed=embed, view=CargoMenuView(ctx.guild))
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def regras(ctx):
-    canal = next((c for c in ctx.guild.text_channels if "regras" in c.name.lower()), None)
+    canal = discord.utils.get(ctx.guild.text_channels, name="📜regras")
     if not canal:
         await ctx.send("Canal de regras não encontrado.")
         return
-    async for msg in canal.history(limit=100):
+
+    async for msg in canal.history(limit=50):
         if msg.author == bot.user and msg.components:
             try:
                 await msg.delete()
             except:
                 pass
+
     embed = discord.Embed(
         title="📜 Regras do Servidor",
         description=(
@@ -178,6 +183,7 @@ async def regras(ctx):
         ),
         color=discord.Color.gold()
     )
+
     button = Button(label="Aceito as Regras", style=discord.ButtonStyle.success)
 
     async def button_callback(interaction):
@@ -208,7 +214,7 @@ async def backup(ctx):
         json.dump(data, f, ensure_ascii=False, indent=4)
     await ctx.send(file=discord.File("server_backup.json"))
 
-# Web keep-alive para Render
+# Mantém o bot vivo no Render
 app = Flask('')
 
 @app.route('/')
